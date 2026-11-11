@@ -1,0 +1,8 @@
+JavaScript syntax check: PASS
+{
+  "checks": 604,
+  "passed": true,
+  "scope": "Coordinate functions, zoom bounds, pan bounds, hidden rule, rotation history structure. Not browser integration tests."
+}
+
+Not tested: iOS/Android/desktop browsers, network model retrieval, detector inference, image saving.
