@@ -22,3 +22,24 @@ export class History{constructor(s){this.a=[s];this.i=0}
  push(s){if(s===this.a[this.i])return;this.a=this.a.slice(0,this.i+1);this.a.push(s);if(this.a.length>60)this.a.shift();this.i=this.a.length-1}
  undo(){return this.i>0?this.a[--this.i]:null}redo(){return this.i<this.a.length-1?this.a[++this.i]:null}
  get canUndo(){return this.i>0}get canRedo(){return this.i<this.a.length-1}}
+// 写真座標 ⇔ 表示領域座標（x,y は表示領域(#vp)左上基準のpx、fs=写真1pxあたりのfit時CSS px）
+export const toPhoto=(v,fs,x,y)=>({x:(x-v.tx)/v.z/fs,y:(y-v.ty)/v.z/fs});
+export const toScreen=(v,fs,x,y)=>({x:x*fs*v.z+v.tx,y:y*fs*v.z+v.ty});
+// 写真・非同期ジョブの世代管理。古い非同期結果が新しい状態を上書き/解除しないための中核
+export class Session{
+ constructor(){this.photo=0;this.load=0;this.loading=false;this.job=null;this.jt=0}
+ get busy(){return this.loading||!!this.job}
+ startLoad(){this.loading=true;return++this.load}          // 選択した瞬間に発行
+ loadOk(t){return t===this.load}                           // 最後に選んだものだけ有効
+ applyPhoto(){this.photo++;this.loading=false;this.job=null;this.jt++} // 古い検出/保存を無効化
+ failLoad(){this.loading=false}
+ startJob(kind){this.job=kind;return{p:this.photo,j:++this.jt}}
+ stale(k){return k.p!==this.photo}
+ endJob(k){if(k.j===this.jt)this.job=null}                 // 古いジョブはbusyを解除しない
+}
+export async function openLatest(Q,decode,f,apply,fail){const t=Q.startLoad();
+ try{const r=await decode(f);if(!Q.loadOk(t))return false;Q.applyPhoto();apply(r);return true}
+ catch(e){if(!Q.loadOk(t))return false;Q.failLoad();fail(e);return false}}
+export async function runJob(Q,kind,work,apply,fail){if(Q.busy)return false;const k=Q.startJob(kind);
+ try{const r=await work(()=>Q.stale(k));if(r!==null&&!Q.stale(k))await apply(r)}
+ catch(e){if(!Q.stale(k))fail(e)}finally{Q.endJob(k)}return true}
